@@ -1403,6 +1403,109 @@ body::before {
   line-height: 1.5;
 }
 
+/* ===== Student Course Registration & My Registrations ===== */
+.modal--lg {
+  max-width: 780px;
+}
+
+.modal__header-title-group {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.modal__icon {
+  font-size: 1.25rem;
+}
+
+.reg-summary-bar {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+  padding: 1rem 1.25rem;
+  background: var(--surface-2);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+}
+
+.reg-summary-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.reg-summary-label {
+  font-size: 0.775rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 600;
+}
+
+.reg-summary-value {
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+
+.reg-summary-value--highlight {
+  color: var(--accent-green);
+}
+
+.reg-table-wrapper {
+  max-height: 380px;
+  overflow-y: auto;
+}
+
+.reg-date-cell {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.student-action-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.student-reg-status {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.toolbar__student-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.toolbar__my-regs-btn {
+  font-weight: 600;
+  border-color: rgba(99, 102, 241, 0.35);
+  background: rgba(99, 102, 241, 0.1);
+  color: var(--primary-300);
+}
+
+.toolbar__my-regs-btn:hover {
+  background: rgba(99, 102, 241, 0.2);
+  color: var(--text-primary);
+  border-color: var(--primary-400);
+}
+
+.btn--xs {
+  padding: 0.2rem 0.5rem;
+  font-size: 0.725rem;
+  border-radius: 4px;
+}
+
+.badge--success {
+  background: rgba(52, 211, 153, 0.15);
+  color: var(--accent-green);
+  border: 1px solid rgba(52, 211, 153, 0.3);
+}
+
 /* ===== Responsive ===== */
 @media (max-width: 768px) {
   .app-container {

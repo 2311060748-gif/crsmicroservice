@@ -12,12 +12,15 @@ import {
   removeToken,
   setToken,
 } from '../api/axiosClient'
-import { loginApi, registerApi } from '../api/authApi'
+import { getCurrentUserApi, loginApi, registerApi } from '../api/authApi'
 import type { LoginRequest, RegisterRequest, RegisterResponse, Role } from '../types'
 
 export interface AuthUser {
   username: string
   role: Role
+  studentId?: number
+  hoTen?: string
+  mssv?: string
 }
 
 interface JwtPayload {
@@ -53,6 +56,7 @@ interface AuthContextType {
   login: (credentials: LoginRequest) => Promise<void>
   register: (data: RegisterRequest) => Promise<RegisterResponse>
   logout: () => void
+  refreshProfile: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -76,22 +80,54 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return { username, role }
   }, [])
 
+  const refreshProfile = useCallback(async () => {
+    try {
+      const profile = await getCurrentUserApi()
+      setUser((prev) => {
+        if (!prev) return null
+        return {
+          ...prev,
+          studentId: profile.studentId,
+          hoTen: profile.hoTen,
+          mssv: profile.mssv,
+        }
+      })
+    } catch {
+      // Ignored if /me is unavailable
+    }
+  }, [])
+
   // Khoi tao state tu localStorage khi reload trang
   useEffect(() => {
-    const savedToken = getToken()
-    if (savedToken) {
-      const parsed = parseUserFromToken(savedToken)
-      if (parsed) {
-        setTokenState(savedToken)
-        setUser(parsed)
-      } else {
-        // Token het han hoac khong hop le
-        removeToken()
-        setTokenState(null)
-        setUser(null)
+    const initAuth = async () => {
+      const savedToken = getToken()
+      if (savedToken) {
+        const parsed = parseUserFromToken(savedToken)
+        if (parsed) {
+          setTokenState(savedToken)
+          setUser(parsed)
+          // Fetch additional profile (studentId, etc)
+          try {
+            const profile = await getCurrentUserApi()
+            setUser({
+              ...parsed,
+              studentId: profile.studentId,
+              hoTen: profile.hoTen,
+              mssv: profile.mssv,
+            })
+          } catch {
+            // keep parsed token info
+          }
+        } else {
+          removeToken()
+          setTokenState(null)
+          setUser(null)
+        }
       }
+      setIsLoading(false)
     }
-    setIsLoading(false)
+
+    initAuth()
   }, [parseUserFromToken])
 
   const logout = useCallback(() => {
@@ -119,11 +155,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setTokenState(accessToken)
 
       const parsed = parseUserFromToken(accessToken)
-      if (parsed) {
-        setUser(parsed)
-      } else {
-        setUser({ username: credentials.username, role: 'USER' })
+      let initialUser: AuthUser = parsed ?? { username: credentials.username, role: 'USER' }
+
+      try {
+        const profile = await getCurrentUserApi()
+        initialUser = {
+          ...initialUser,
+          studentId: profile.studentId,
+          hoTen: profile.hoTen,
+          mssv: profile.mssv,
+        }
+      } catch {
+        // Fallback to basic user
       }
+
+      setUser(initialUser)
     },
     [parseUserFromToken]
   )
@@ -145,8 +191,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       login,
       register,
       logout,
+      refreshProfile,
     }),
-    [user, token, isLoading, login, register, logout]
+    [user, token, isLoading, login, register, logout, refreshProfile]
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

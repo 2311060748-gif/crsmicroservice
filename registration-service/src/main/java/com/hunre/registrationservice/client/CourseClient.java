@@ -5,6 +5,8 @@ import com.hunre.registrationservice.exception.ResourceNotFoundException;
 import com.hunre.registrationservice.exception.ServiceUnavailableException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpClientErrorException;
@@ -21,6 +23,15 @@ public class CourseClient {
     @Value("${course-service.base-url}")
     private String courseServiceBaseUrl;
 
+    @Value("${internal.api-key}")
+    private String internalApiKey;
+
+    private HttpEntity<Void> createInternalAuthEntity() {
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("X-Internal-Key", internalApiKey);
+        return new HttpEntity<>(headers);
+    }
+
     public void reserveSeat(Long courseId) {
 
         String url = courseServiceBaseUrl
@@ -33,7 +44,7 @@ public class CourseClient {
             restTemplate.exchange(
                     url,
                     HttpMethod.PATCH,
-                    null,
+                    createInternalAuthEntity(),
                     Void.class
             );
 
@@ -69,7 +80,7 @@ public class CourseClient {
             restTemplate.exchange(
                     url,
                     HttpMethod.PATCH,
-                    null,
+                    createInternalAuthEntity(),
                     Void.class
             );
 

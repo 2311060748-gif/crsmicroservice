@@ -4,6 +4,7 @@ import com.hunre.authservice.dto.LoginRequest;
 import com.hunre.authservice.dto.LoginResponse;
 import com.hunre.authservice.dto.RegisterRequest;
 import com.hunre.authservice.dto.RegisterResponse;
+import com.hunre.authservice.repository.StudentRepository;
 import com.hunre.authservice.service.AuthService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -16,6 +17,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.bind.annotation.ResponseStatus;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -23,9 +25,11 @@ import java.util.Map;
 @RequestMapping("/api/auth")
 public class AuthController {
     private final AuthService authService;
+    private final StudentRepository studentRepository;
 
-    public AuthController(AuthService authService) {
+    public AuthController(AuthService authService, StudentRepository studentRepository) {
         this.authService = authService;
+        this.studentRepository = studentRepository;
     }
 
     @PostMapping("/register")
@@ -45,6 +49,17 @@ public class AuthController {
                 .map(GrantedAuthority::getAuthority)
                 .map(authority -> authority.replaceFirst("^ROLE_", ""))
                 .toList();
-        return Map.of("username", authentication.getName(), "roles", roles);
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("username", authentication.getName());
+        response.put("roles", roles);
+
+        studentRepository.findByUserUsername(authentication.getName()).ifPresent(student -> {
+            response.put("studentId", student.getId());
+            response.put("hoTen", student.getHoTen());
+            response.put("mssv", student.getMssv());
+        });
+
+        return response;
     }
 }

@@ -3,8 +3,15 @@ import { useCourses } from '../hooks/useCourses'
 import { useAuth } from '../context/AuthContext'
 import CourseFormModal from './CourseFormModal'
 import DeleteConfirmModal from './DeleteConfirmModal'
+import MyRegistrationsModal from './MyRegistrationsModal'
 import { ToastContainer, useToast } from './Toast'
-import type { CourseDTO } from '../types'
+import {
+  cancelRegistrationApi,
+  extractRegistrationErrorMessage,
+  getStudentRegistrationsApi,
+  registerCourseApi,
+} from '../api/registrationApi'
+import type { CourseDTO, Registration } from '../types'
 
 /* ================================================================
    Helper: build an array of page numbers with ellipsis markers
@@ -83,6 +90,80 @@ export default function CourseList() {
   const { isAdmin, user } = useAuth()
   const [modal, setModal] = useState<ModalState>({ kind: 'closed' })
 
+  // State dang ky hoc phan cho sinh vien
+  const [studentRegistrations, setStudentRegistrations] = useState<Registration[]>([])
+  const [isMyRegsOpen, setIsMyRegsOpen] = useState(false)
+  const [actionLoadingId, setActionLoadingId] = useState<number | null>(null)
+
+  // Xac dinh studentId tu user profile (hoac mac dinh 1 cho user sinh vien)
+  const effectiveStudentId = user?.studentId ?? (user?.role === 'USER' ? 1 : null)
+
+  const fetchRegistrations = useCallback(async () => {
+    if (!effectiveStudentId) return
+    try {
+      const res = await getStudentRegistrationsApi(effectiveStudentId)
+      setStudentRegistrations(res.content)
+    } catch {
+      // Ignored if service is starting
+    }
+  }, [effectiveStudentId])
+
+  useEffect(() => {
+    if (!isAdmin && effectiveStudentId) {
+      fetchRegistrations()
+    }
+  }, [isAdmin, effectiveStudentId, fetchRegistrations])
+
+  // Map cac mon hoc da dang ky thanh cong
+  const registeredCourseMap = useMemo(() => {
+    const map = new Map<number, Registration>()
+    studentRegistrations
+      .filter((r) => r.trangThai === 'DA_DANG_KY')
+      .forEach((r) => map.set(r.courseId, r))
+    return map
+  }, [studentRegistrations])
+
+  // Dang ky mon hoc
+  const handleRegisterCourse = async (course: CourseDTO) => {
+    if (!effectiveStudentId) {
+      addToast('error', 'Chưa có thông tin sinh viên để đăng ký.')
+      return
+    }
+
+    setActionLoadingId(course.id)
+    try {
+      await registerCourseApi({
+        studentId: effectiveStudentId,
+        courseId: course.id,
+      })
+      addToast('success', `Đăng ký thành công môn "${course.tenMonHoc}"!`)
+      await fetchRegistrations()
+      refetch()
+    } catch (err) {
+      addToast('error', extractRegistrationErrorMessage(err))
+    } finally {
+      setActionLoadingId(null)
+    }
+  }
+
+  // Huy dang ky mon hoc
+  const handleCancelRegistration = async (
+    registrationId: number,
+    courseName: string
+  ) => {
+    setActionLoadingId(registrationId)
+    try {
+      await cancelRegistrationApi(registrationId)
+      addToast('success', `Đã hủy đăng ký môn "${courseName}" thành công!`)
+      await fetchRegistrations()
+      refetch()
+    } catch (err) {
+      addToast('error', extractRegistrationErrorMessage(err))
+    } finally {
+      setActionLoadingId(null)
+    }
+  }
+
   // Lang nghe su kien 403 tu axios interceptor
   useEffect(() => {
     const handleForbidden = (e: Event) => {
@@ -134,11 +215,11 @@ export default function CourseList() {
         <span className="page-header__icon">📚</span>
         <h1 className="page-header__title">Danh sách Môn học</h1>
         <p className="page-header__subtitle">
-          Tìm kiếm và quản lý các môn học trong hệ thống
+          Tìm kiếm, quản lý và đăng ký các môn học trong học kỳ
         </p>
       </header>
 
-      {/* ---- Toolbar: Search + Add (Role Based) ---- */}
+      {/* ---- Toolbar: Search + Add / My Regs (Role Based) ---- */}
       <div className="toolbar">
         <div className="toolbar__search search-bar">
           <span className="search-bar__icon">🔍</span>
@@ -172,10 +253,15 @@ export default function CourseList() {
             ➕ Thêm môn học
           </button>
         ) : (
-          <div className="toolbar__role-badge">
-            <span className="badge badge--neutral">
-              🎓 Sinh viên: <strong>{user?.username}</strong> (Chế độ xem)
-            </span>
+          <div className="toolbar__student-actions">
+            <button
+              type="button"
+              className="btn btn--ghost toolbar__my-regs-btn"
+              onClick={() => setIsMyRegsOpen(true)}
+              title="Xem danh sách các môn đã đăng ký"
+            >
+              📋 Học phần đã đăng ký ({registeredCourseMap.size})
+            </button>
           </div>
         )}
       </div>
@@ -245,7 +331,7 @@ export default function CourseList() {
                 <th className="text-center">Số tín chỉ</th>
                 <th className="text-center">Sĩ số</th>
                 <th className="text-center">Còn lại</th>
-                <th className="text-center">{isAdmin ? 'Thao tác' : 'Chế độ'}</th>
+                <th className="text-center">{isAdmin ? 'Thao tác' : 'Đăng ký'}</th>
               </tr>
             </thead>
             <tbody key={`${page}-${keyword}`}>
@@ -322,7 +408,62 @@ export default function CourseList() {
                           </button>
                         </div>
                       ) : (
-                        <span className="badge badge--neutral">Chỉ xem</span>
+                        <div className="student-action-cell">
+                          {registeredCourseMap.has(course.id) ? (
+                            <div className="student-reg-status">
+                              <span className="badge badge--success">
+                                ✅ Đã ĐK
+                              </span>
+                              <button
+                                type="button"
+                                className="btn btn--danger btn--xs"
+                                onClick={() =>
+                                  handleCancelRegistration(
+                                    registeredCourseMap.get(course.id)!.id,
+                                    course.tenMonHoc
+                                  )
+                                }
+                                disabled={
+                                  actionLoadingId ===
+                                  registeredCourseMap.get(course.id)!.id
+                                }
+                                title="Hủy đăng ký môn học này"
+                              >
+                                {actionLoadingId ===
+                                registeredCourseMap.get(course.id)!.id ? (
+                                  <span className="spinner-small" />
+                                ) : (
+                                  'Hủy'
+                                )}
+                              </button>
+                            </div>
+                          ) : course.soChoConLai <= 0 ? (
+                            <button
+                              type="button"
+                              className="btn btn--ghost btn--sm"
+                              disabled
+                              title="Môn học đã hết chỗ"
+                            >
+                              🚫 Hết chỗ
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              className="btn btn--primary btn--sm"
+                              onClick={() => handleRegisterCourse(course)}
+                              disabled={actionLoadingId === course.id}
+                              title="Đăng ký học phần này"
+                            >
+                              {actionLoadingId === course.id ? (
+                                <>
+                                  <span className="spinner-small" /> Đang ĐK...
+                                </>
+                              ) : (
+                                '📝 Đăng ký'
+                              )}
+                            </button>
+                          )}
+                        </div>
                       )}
                     </td>
                   </tr>
@@ -402,6 +543,15 @@ export default function CourseList() {
           onClose={closeModal}
         />
       )}
+
+      {/* ---- My Registrations Modal ---- */}
+      <MyRegistrationsModal
+        isOpen={isMyRegsOpen}
+        onClose={() => setIsMyRegsOpen(false)}
+        registrations={studentRegistrations}
+        courses={data?.content ?? []}
+        onCancel={handleCancelRegistration}
+      />
     </div>
   )
 }

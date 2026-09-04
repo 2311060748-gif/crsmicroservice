@@ -30,4 +30,7 @@ export interface RegisterResponse {
 export interface CurrentUserResponse {
   username: string;
   roles: Role[];
+  studentId?: number;
+  hoTen?: string;
+  mssv?: string;
 }
