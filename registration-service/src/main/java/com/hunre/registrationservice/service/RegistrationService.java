@@ -8,12 +8,14 @@ import com.hunre.registrationservice.exception.ResourceNotFoundException;
 import com.hunre.registrationservice.repository.RegistrationRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class RegistrationService {
@@ -66,15 +68,34 @@ public class RegistrationService {
         // Course-service giữ 1 chỗ trước.
         courseClient.reserveSeat(dto.getCourseId());
 
-        // Giữ chỗ thành công mới tạo đăng ký.
-        Registration registration = new Registration();
+        // Giữ chỗ thành công → tạo đăng ký.
+        // Nếu lưu thất bại → phải trả chỗ (compensation).
+        try {
+            Registration registration = new Registration();
 
-        registration.setStudentId(dto.getStudentId());
-        registration.setCourseId(dto.getCourseId());
-        registration.setTrangThai(DA_DANG_KY);
-        registration.setNgayDangKy(LocalDateTime.now());
+            registration.setStudentId(dto.getStudentId());
+            registration.setCourseId(dto.getCourseId());
+            registration.setTrangThai(DA_DANG_KY);
+            registration.setNgayDangKy(LocalDateTime.now());
 
-        return registrationRepository.save(registration);
+            return registrationRepository.save(registration);
+
+        } catch (Exception ex) {
+            // Hoàn tác: trả lại chỗ đã giữ.
+            log.error(
+                    "Lưu đăng ký thất bại cho studentId={}, courseId={}. Trả chỗ.",
+                    dto.getStudentId(), dto.getCourseId(), ex
+            );
+            try {
+                courseClient.releaseSeat(dto.getCourseId());
+            } catch (Exception releaseEx) {
+                log.error(
+                        "Không thể trả chỗ cho courseId={}. Cần xử lý thủ công!",
+                        dto.getCourseId(), releaseEx
+                );
+            }
+            throw ex;
+        }
     }
 
     @Transactional
@@ -93,9 +114,9 @@ public class RegistrationService {
                 registration.getCourseId()
         );
 
+        // Trả chỗ thành công → đổi trạng thái.
+        // Entity đã managed trong @Transactional, JPA tự flush khi commit.
         registration.setTrangThai(DA_HUY);
-
-        registrationRepository.save(registration);
     }
 
     private Registration findOrThrow(Long id) {
@@ -107,3 +128,4 @@ public class RegistrationService {
                 );
     }
 }
+
