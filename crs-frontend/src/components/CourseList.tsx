@@ -1,5 +1,9 @@
-import { useMemo } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useCourses } from '../hooks/useCourses'
+import CourseFormModal from './CourseFormModal'
+import DeleteConfirmModal from './DeleteConfirmModal'
+import { ToastContainer, useToast } from './Toast'
+import type { CourseDTO } from '../types'
 
 /* ================================================================
    Helper: build an array of page numbers with ellipsis markers
@@ -49,6 +53,15 @@ function getSeatLevel(pct: number): 'low' | 'medium' | 'high' {
 }
 
 /* ================================================================
+   Modal state types
+   ================================================================ */
+type ModalState =
+  | { kind: 'closed' }
+  | { kind: 'create' }
+  | { kind: 'edit'; course: CourseDTO }
+  | { kind: 'delete'; course: CourseDTO }
+
+/* ================================================================
    Component
    ================================================================ */
 export default function CourseList() {
@@ -65,6 +78,9 @@ export default function CourseList() {
     refetch,
   } = useCourses({ initialSize: 10 })
 
+  const { toasts, addToast, removeToast } = useToast()
+  const [modal, setModal] = useState<ModalState>({ kind: 'closed' })
+
   const pageRange = useMemo(
     () => buildPageRange(page, data?.totalPages ?? 0, 2),
     [page, data?.totalPages]
@@ -73,8 +89,32 @@ export default function CourseList() {
   /* ---------- Row index helper ---------- */
   const rowIndex = (i: number) => page * pageSize + i + 1
 
+  /* ---------- Modal handlers ---------- */
+  const closeModal = useCallback(() => setModal({ kind: 'closed' }), [])
+
+  const handleCreated = useCallback(() => {
+    closeModal()
+    addToast('success', 'Thêm môn học thành công!')
+    refetch()
+  }, [closeModal, addToast, refetch])
+
+  const handleUpdated = useCallback(() => {
+    closeModal()
+    addToast('success', 'Cập nhật môn học thành công!')
+    refetch()
+  }, [closeModal, addToast, refetch])
+
+  const handleDeleted = useCallback(() => {
+    closeModal()
+    addToast('success', 'Xóa môn học thành công!')
+    refetch()
+  }, [closeModal, addToast, refetch])
+
   return (
     <div className="app-container">
+      {/* Toast notifications */}
+      <ToastContainer toasts={toasts} onRemove={removeToast} />
+
       {/* ---- Header ---- */}
       <header className="page-header">
         <span className="page-header__icon">📚</span>
@@ -84,28 +124,38 @@ export default function CourseList() {
         </p>
       </header>
 
-      {/* ---- Search ---- */}
-      <div className="search-bar">
-        <span className="search-bar__icon">🔍</span>
-        <input
-          id="search-input"
-          className="search-bar__input"
-          type="text"
-          placeholder="Tìm kiếm theo tên môn học..."
-          value={keyword}
-          onChange={(e) => setKeyword(e.target.value)}
-          autoComplete="off"
-        />
-        {keyword && (
-          <button
-            className="search-bar__clear"
-            onClick={() => setKeyword('')}
-            aria-label="Xóa tìm kiếm"
-            title="Xóa"
-          >
-            ✕
-          </button>
-        )}
+      {/* ---- Toolbar: Search + Add ---- */}
+      <div className="toolbar">
+        <div className="toolbar__search search-bar">
+          <span className="search-bar__icon">🔍</span>
+          <input
+            id="search-input"
+            className="search-bar__input"
+            type="text"
+            placeholder="Tìm kiếm theo tên môn học..."
+            value={keyword}
+            onChange={(e) => setKeyword(e.target.value)}
+            autoComplete="off"
+          />
+          {keyword && (
+            <button
+              className="search-bar__clear"
+              onClick={() => setKeyword('')}
+              aria-label="Xóa tìm kiếm"
+              title="Xóa"
+            >
+              ✕
+            </button>
+          )}
+        </div>
+
+        <button
+          id="btn-add-course"
+          className="btn btn--primary"
+          onClick={() => setModal({ kind: 'create' })}
+        >
+          ➕ Thêm môn học
+        </button>
       </div>
 
       {/* ---- Error ---- */}
@@ -173,6 +223,7 @@ export default function CourseList() {
                 <th className="text-center">Số tín chỉ</th>
                 <th className="text-center">Sĩ số</th>
                 <th className="text-center">Còn lại</th>
+                <th className="text-center">Thao tác</th>
               </tr>
             </thead>
             <tbody key={`${page}-${keyword}`}>
@@ -223,6 +274,30 @@ export default function CourseList() {
                       >
                         {course.soChoConLai === 0 ? 'Hết' : course.soChoConLai}
                       </span>
+                    </td>
+                    <td className="text-center">
+                      <div className="actions-cell">
+                        <button
+                          className="btn-icon btn-icon--edit"
+                          title="Sửa"
+                          aria-label={`Sửa ${course.tenMonHoc}`}
+                          onClick={() =>
+                            setModal({ kind: 'edit', course })
+                          }
+                        >
+                          ✏️
+                        </button>
+                        <button
+                          className="btn-icon btn-icon--delete"
+                          title="Xóa"
+                          aria-label={`Xóa ${course.tenMonHoc}`}
+                          onClick={() =>
+                            setModal({ kind: 'delete', course })
+                          }
+                        >
+                          🗑️
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 )
@@ -275,6 +350,31 @@ export default function CourseList() {
             ›
           </button>
         </nav>
+      )}
+
+      {/* ---- Modals ---- */}
+      {modal.kind === 'create' && (
+        <CourseFormModal
+          course={null}
+          onSaved={handleCreated}
+          onClose={closeModal}
+        />
+      )}
+
+      {modal.kind === 'edit' && (
+        <CourseFormModal
+          course={modal.course}
+          onSaved={handleUpdated}
+          onClose={closeModal}
+        />
+      )}
+
+      {modal.kind === 'delete' && (
+        <DeleteConfirmModal
+          course={modal.course}
+          onDeleted={handleDeleted}
+          onClose={closeModal}
+        />
       )}
     </div>
   )
