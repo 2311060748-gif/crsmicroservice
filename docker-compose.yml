@@ -1,0 +1,153 @@
+services:
+  # ==========================================================
+  # 1. Cơ sở dữ liệu MySQL tập trung (Multi-Database)
+  # ==========================================================
+  mysql:
+    image: mysql:8.0
+    container_name: crs-mysql
+    restart: unless-stopped
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_USER: student
+      MYSQL_PASSWORD: student
+      MYSQL_DATABASE: auth_db
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./docker/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - crs-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "student", "-pstudent"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+  # ==========================================================
+  # 2. Auth Service (Port 8081)
+  # ==========================================================
+  auth-service:
+    build:
+      context: ./auth-service
+      dockerfile: Dockerfile
+    container_name: crs-auth-service
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/auth_db?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Ho_Chi_Minh
+      SPRING_DATASOURCE_USERNAME: student
+      SPRING_DATASOURCE_PASSWORD: student
+      JWT_SECRET: VGhpc0lzQURldmVsb3BtZW50U2VjcmV0VGhhdE11c3RCZVJlcGxhY2VkSW5Qcm9kdWN0aW9uIQ==
+      JWT_EXPIRATION_MS: 3600000
+      ADMIN_USERNAME: admin01
+      ADMIN_PASSWORD: admin-password
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - crs-network
+
+  # ==========================================================
+  # 3. Course Service (Port 8082)
+  # ==========================================================
+  course-service:
+    build:
+      context: ./course_service
+      dockerfile: Dockerfile
+    container_name: crs-course-service
+    restart: unless-stopped
+    ports:
+      - "8082:8082"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/course_db?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Ho_Chi_Minh
+      SPRING_DATASOURCE_USERNAME: student
+      SPRING_DATASOURCE_PASSWORD: student
+      JWT_SECRET: VGhpc0lzQURldmVsb3BtZW50U2VjcmV0VGhhdE11c3RCZVJlcGxhY2VkSW5Qcm9kdWN0aW9uIQ==
+      INTERNAL_API_KEY: dev-internal-key-change-me
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - crs-network
+
+  # ==========================================================
+  # 4. Registration Service (Port 8083)
+  # ==========================================================
+  registration-service:
+    build:
+      context: ./registration-service
+      dockerfile: Dockerfile
+    container_name: crs-registration-service
+    restart: unless-stopped
+    ports:
+      - "8083:8083"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/registration_db?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Ho_Chi_Minh
+      SPRING_DATASOURCE_USERNAME: student
+      SPRING_DATASOURCE_PASSWORD: student
+      COURSE_SERVICE_URL: http://course-service:8082
+      JWT_SECRET: VGhpc0lzQURldmVsb3BtZW50U2VjcmV0VGhhdE11c3RCZVJlcGxhY2VkSW5Qcm9kdWN0aW9uIQ==
+      INTERNAL_API_KEY: dev-internal-key-change-me
+    depends_on:
+      mysql:
+        condition: service_healthy
+      course-service:
+        condition: service_started
+    networks:
+      - crs-network
+
+  # ==========================================================
+  # 5. API Gateway (Port 8080)
+  # ==========================================================
+  api-gateway:
+    build:
+      context: ./api-gateway
+      dockerfile: Dockerfile
+    container_name: crs-api-gateway
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      SERVER_PORT: 8080
+      AUTH_SERVICE_URL: http://auth-service:8081
+      COURSE_SERVICE_URL: http://course-service:8082
+      REGISTRATION_SERVICE_URL: http://registration-service:8083
+      JWT_SECRET: VGhpc0lzQURldmVsb3BtZW50U2VjcmV0VGhhdE11c3RCZVJlcGxhY2VkSW5Qcm9kdWN0aW9uIQ==
+    depends_on:
+      auth-service:
+        condition: service_started
+      course-service:
+        condition: service_started
+      registration-service:
+        condition: service_started
+    networks:
+      - crs-network
+
+  # ==========================================================
+  # 6. Frontend React SPA (Port 5173 / Nginx :80)
+  # ==========================================================
+  crs-frontend:
+    build:
+      context: ./crs-frontend
+      dockerfile: Dockerfile
+    container_name: crs-frontend
+    restart: unless-stopped
+    ports:
+      - "5173:80"
+    depends_on:
+      api-gateway:
+        condition: service_started
+    networks:
+      - crs-network
+
+networks:
+  crs-network:
+    name: crs-network
+    driver: bridge
+
+volumes:
+  mysql_data:
+    name: crs-mysql-data
