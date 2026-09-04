@@ -1,5 +1,6 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useCourses } from '../hooks/useCourses'
+import { useAuth } from '../context/AuthContext'
 import CourseFormModal from './CourseFormModal'
 import DeleteConfirmModal from './DeleteConfirmModal'
 import { ToastContainer, useToast } from './Toast'
@@ -79,7 +80,20 @@ export default function CourseList() {
   } = useCourses({ initialSize: 10 })
 
   const { toasts, addToast, removeToast } = useToast()
+  const { isAdmin, user } = useAuth()
   const [modal, setModal] = useState<ModalState>({ kind: 'closed' })
+
+  // Lang nghe su kien 403 tu axios interceptor
+  useEffect(() => {
+    const handleForbidden = (e: Event) => {
+      const detail = (e as CustomEvent<{ message?: string }>).detail
+      addToast('error', detail?.message || 'Bạn không có quyền thực hiện thao tác này.')
+    }
+    window.addEventListener('auth:forbidden', handleForbidden)
+    return () => {
+      window.removeEventListener('auth:forbidden', handleForbidden)
+    }
+  }, [addToast])
 
   const pageRange = useMemo(
     () => buildPageRange(page, data?.totalPages ?? 0, 2),
@@ -124,7 +138,7 @@ export default function CourseList() {
         </p>
       </header>
 
-      {/* ---- Toolbar: Search + Add ---- */}
+      {/* ---- Toolbar: Search + Add (Role Based) ---- */}
       <div className="toolbar">
         <div className="toolbar__search search-bar">
           <span className="search-bar__icon">🔍</span>
@@ -149,13 +163,21 @@ export default function CourseList() {
           )}
         </div>
 
-        <button
-          id="btn-add-course"
-          className="btn btn--primary"
-          onClick={() => setModal({ kind: 'create' })}
-        >
-          ➕ Thêm môn học
-        </button>
+        {isAdmin ? (
+          <button
+            id="btn-add-course"
+            className="btn btn--primary"
+            onClick={() => setModal({ kind: 'create' })}
+          >
+            ➕ Thêm môn học
+          </button>
+        ) : (
+          <div className="toolbar__role-badge">
+            <span className="badge badge--neutral">
+              🎓 Sinh viên: <strong>{user?.username}</strong> (Chế độ xem)
+            </span>
+          </div>
+        )}
       </div>
 
       {/* ---- Error ---- */}
@@ -223,7 +245,7 @@ export default function CourseList() {
                 <th className="text-center">Số tín chỉ</th>
                 <th className="text-center">Sĩ số</th>
                 <th className="text-center">Còn lại</th>
-                <th className="text-center">Thao tác</th>
+                <th className="text-center">{isAdmin ? 'Thao tác' : 'Chế độ'}</th>
               </tr>
             </thead>
             <tbody key={`${page}-${keyword}`}>
@@ -276,28 +298,32 @@ export default function CourseList() {
                       </span>
                     </td>
                     <td className="text-center">
-                      <div className="actions-cell">
-                        <button
-                          className="btn-icon btn-icon--edit"
-                          title="Sửa"
-                          aria-label={`Sửa ${course.tenMonHoc}`}
-                          onClick={() =>
-                            setModal({ kind: 'edit', course })
-                          }
-                        >
-                          ✏️
-                        </button>
-                        <button
-                          className="btn-icon btn-icon--delete"
-                          title="Xóa"
-                          aria-label={`Xóa ${course.tenMonHoc}`}
-                          onClick={() =>
-                            setModal({ kind: 'delete', course })
-                          }
-                        >
-                          🗑️
-                        </button>
-                      </div>
+                      {isAdmin ? (
+                        <div className="actions-cell">
+                          <button
+                            className="btn-icon btn-icon--edit"
+                            title="Sửa"
+                            aria-label={`Sửa ${course.tenMonHoc}`}
+                            onClick={() =>
+                              setModal({ kind: 'edit', course })
+                            }
+                          >
+                            ✏️
+                          </button>
+                          <button
+                            className="btn-icon btn-icon--delete"
+                            title="Xóa"
+                            aria-label={`Xóa ${course.tenMonHoc}`}
+                            onClick={() =>
+                              setModal({ kind: 'delete', course })
+                            }
+                          >
+                            🗑️
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="badge badge--neutral">Chỉ xem</span>
+                      )}
                     </td>
                   </tr>
                 )
