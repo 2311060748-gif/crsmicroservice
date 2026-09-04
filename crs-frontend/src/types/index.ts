@@ -9,3 +9,11 @@ export type {
 export type { CourseDTO, CourseRequest } from './course';
 export type { Registration, RegistrationRequestDTO } from './registration';
 export type { ApiErrorResponse, Pageable, PageResponse, Sort } from './api';
+export type {
+  ApiKey,
+  ApiKeyStatus,
+  CreateApiKeyRequest,
+  CreatedApiKeyResponse,
+  VerifyApiKeyRequest,
+  VerifyApiKeyResponse,
+} from './apiKey';

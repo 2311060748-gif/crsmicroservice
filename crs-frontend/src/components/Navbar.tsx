@@ -1,9 +1,13 @@
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 
 const Navbar = () => {
   const { user, isAdmin, logout } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
+
+  const isCoursesActive = location.pathname.startsWith('/courses')
+  const isApiKeysActive = location.pathname.startsWith('/admin/api-keys')
 
   const handleLogout = () => {
     logout()
@@ -24,9 +28,20 @@ const Navbar = () => {
         </Link>
 
         <nav className="navbar__nav">
-          <Link to="/courses" className="navbar__nav-link navbar__nav-link--active">
-            Môn học
+          <Link
+            to="/courses"
+            className={`navbar__nav-link ${isCoursesActive ? 'navbar__nav-link--active' : ''}`}
+          >
+            📚 Môn học
           </Link>
+          {isAdmin && (
+            <Link
+              to="/admin/api-keys"
+              className={`navbar__nav-link ${isApiKeysActive ? 'navbar__nav-link--active' : ''}`}
+            >
+              🔑 Quản lý API Key
+            </Link>
+          )}
         </nav>
 
         <div className="navbar__actions">

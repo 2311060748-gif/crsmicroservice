@@ -4,6 +4,7 @@ import Navbar from './components/Navbar'
 import ProtectedRoute from './components/ProtectedRoute'
 import CourseList from './components/CourseList'
 import LoginPage from './pages/LoginPage'
+import ApiKeysPage from './pages/ApiKeysPage'
 
 function App() {
   return (
@@ -22,6 +23,21 @@ function App() {
                   <Navbar />
                   <main className="app-main">
                     <CourseList />
+                  </main>
+                </div>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Tuyến đường bảo vệ ADMIN: Quản lý API Key */}
+          <Route
+            path="/admin/api-keys"
+            element={
+              <ProtectedRoute requiredRole="ADMIN">
+                <div className="app-layout">
+                  <Navbar />
+                  <main className="app-main">
+                    <ApiKeysPage />
                   </main>
                 </div>
               </ProtectedRoute>
